@@ -1,9 +1,29 @@
-import { Hono } from "hono";
+import { AutoRouter } from "itty-router";
+import {
+	handleCreateBusStop,
+	handleCreateTimetable,
+	handleDeleteTimetable,
+	handleGetBusStops,
+	handleGetTimetable,
+} from "./handlers/admin";
+import { handleAlexa } from "./handlers/alexa";
+import { handleLine } from "./handlers/line";
+import { handleSearch } from "./handlers/search";
+import type { Env } from "./types";
 
-const app = new Hono();
+const router = AutoRouter();
 
-app.get("/search", (c) => {
-	return c.text("Hello Hono!");
-});
+router
+	.get("/search", handleSearch)
+	.post("/line", handleLine)
+	.post("/alexa", handleAlexa)
+	.get("/admin/bus-stops", handleGetBusStops)
+	.post("/admin/bus-stops", handleCreateBusStop)
+	.get("/admin/timetable/:busStopId", handleGetTimetable)
+	.post("/admin/timetable", handleCreateTimetable)
+	.delete("/admin/timetable/:id", handleDeleteTimetable);
 
-export default app;
+export default {
+	fetch: (req: Request, env: Env, ctx: ExecutionContext) =>
+		router.fetch(req, env, ctx),
+};

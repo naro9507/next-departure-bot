@@ -1,29 +1,81 @@
-import timeTableData from './data/timeTable.json'
+import { and, asc, eq, sql } from "drizzle-orm";
+import type { Db } from "../db/client";
+import { busStops, timetable } from "../db/schema";
+import type { DayType } from "../utils/time";
 
-interface TimeTableRepository {
- getNextFromBusStop1(): Date
- getNextFromBusStop2(): Date
+export interface NextDeparture {
+	hour: number;
+	minute: number;
+	busStopName: string;
 }
 
-type TimeTable = {
-  hour: number
-  minutes: ReadonlyArray<number>
+export async function getNextDeparture(
+	db: Db,
+	busStopId: number,
+	dayType: DayType,
+	currentHour: number,
+	currentMinute: number,
+): Promise<NextDeparture | null> {
+	const currentMinutesSinceMidnight = currentHour * 60 + currentMinute;
+
+	const result = await db
+		.select({
+			hour: timetable.hour,
+			minute: timetable.minute,
+			busStopName: busStops.name,
+		})
+		.from(timetable)
+		.innerJoin(busStops, eq(timetable.busStopId, busStops.id))
+		.where(
+			and(
+				eq(timetable.busStopId, busStopId),
+				eq(timetable.dayType, dayType),
+				sql`${timetable.hour} * 60 + ${timetable.minute} > ${currentMinutesSinceMidnight}`,
+			),
+		)
+		.orderBy(asc(timetable.hour), asc(timetable.minute))
+		.limit(1);
+
+	return result[0] ?? null;
 }
 
-export class TimeTableRepositoryImpl implements TimeTableRepository {
-  busStop1 : ReadonlyArray<TimeTable>
-  busStop2: ReadonlyArray<TimeTable>
+export async function getAllBusStops(db: Db) {
+	return db.select().from(busStops);
+}
 
-  constructor() {
-    this.busStop1 = timeTableData.busStop1
-    this.busStop2 = timeTableData.busStop2
-  }
+export async function createBusStop(db: Db, name: string) {
+	const result = await db.insert(busStops).values({ name }).returning();
+	return result[0];
+}
 
-  public getNextFromBusStop1(): Date {
-    return new Date()
-  }
+export async function getTimetableForBusStop(
+	db: Db,
+	busStopId: number,
+	dayType?: DayType,
+) {
+	const conditions = [eq(timetable.busStopId, busStopId)];
+	if (dayType) conditions.push(eq(timetable.dayType, dayType));
 
-  public getNextFromBusStop2(): Date {
-    return new Date()
-  }
+	return db
+		.select()
+		.from(timetable)
+		.where(and(...conditions))
+		.orderBy(asc(timetable.dayType), asc(timetable.hour), asc(timetable.minute));
+}
+
+export async function createTimetableEntry(
+	db: Db,
+	entry: {
+		busStopId: number;
+		dayType: DayType;
+		hour: number;
+		minute: number;
+	},
+) {
+	const result = await db.insert(timetable).values(entry).returning();
+	return result[0];
+}
+
+export async function deleteTimetableEntry(db: Db, id: number) {
+	await db.delete(timetable).where(eq(timetable.id, id));
 }

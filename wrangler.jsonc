@@ -3,36 +3,11 @@
 	"name": "next-departure-bot",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-07-30",
-	// "compatibility_flags": [
-	//   "nodejs_compat"
-	// ],
-	// "vars": {
-	//   "MY_VAR": "my-variable"
-	// },
-	// "kv_namespaces": [
-	//   {
-	//     "binding": "MY_KV_NAMESPACE",
-	//     "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-	//   }
-	// ],
-	// "r2_buckets": [
-	//   {
-	//     "binding": "MY_BUCKET",
-	//     "bucket_name": "my-bucket"
-	//   }
-	// ],
-	// "d1_databases": [
-	//   {
-	//     "binding": "MY_DB",
-	//     "database_name": "my-database",
-	//     "database_id": ""
-	//   }
-	// ],
-	// "ai": {
-	//   "binding": "AI"
-	// },
-	// "observability": {
-	//   "enabled": true,
-	//   "head_sampling_rate": 1
-	// }
+	// Secrets (set via `wrangler secret put <NAME>` or .dev.vars for local dev):
+	//   TURSO_DATABASE_URL    - Turso DB URL (libsql://...)
+	//   TURSO_AUTH_TOKEN      - Turso auth token
+	//   LINE_CHANNEL_SECRET   - LINE channel secret for webhook signature verification
+	//   LINE_CHANNEL_ACCESS_TOKEN - LINE channel access token for sending messages
+	//   ALEXA_APP_ID          - Alexa skill application ID
+	//   ADMIN_API_TOKEN       - Bearer token for admin API
 }

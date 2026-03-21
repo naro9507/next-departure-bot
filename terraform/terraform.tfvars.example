@@ -1,0 +1,21 @@
+# このファイルをコピーして terraform.tfvars を作成し、各値を埋めてください。
+# terraform.tfvars は .gitignore に含まれているためコミットされません。
+
+# Cloudflare
+cloudflare_api_token  = "your-cloudflare-api-token"
+cloudflare_account_id = "your-cloudflare-account-id"
+cloudflare_zone_id    = "your-cloudflare-zone-id"
+
+# WAF: /admin に許可するIPアドレスのリスト
+admin_allowed_ips = ["203.0.113.1"]
+
+# Turso
+turso_api_token    = "your-turso-api-token"
+turso_organization = "your-org-slug"
+turso_group        = "default"
+
+# App secrets
+line_channel_secret       = "your-line-channel-secret"
+line_channel_access_token = "your-line-channel-access-token"
+alexa_app_id              = "amzn1.ask.skill.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+admin_api_token           = "your-strong-random-token"

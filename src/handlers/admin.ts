@@ -1,6 +1,8 @@
+import { eq } from "drizzle-orm";
 import type { IRequest } from "itty-router";
 import { z } from "zod";
 import { createDb } from "../db/client";
+import { busStops, timetable } from "../db/schema";
 import {
 	createBusStop,
 	createTimetableEntry,
@@ -9,6 +11,7 @@ import {
 	getTimetableForBusStop,
 } from "../repository/timeTable";
 import type { Env } from "../types";
+import type { DayType } from "../utils/time";
 
 function checkAuth(req: IRequest, env: Env): Response | null {
 	const auth = req.headers.get("Authorization");
@@ -59,6 +62,25 @@ export async function handleCreateBusStop(
 	});
 }
 
+export async function handleDeleteBusStop(
+	req: IRequest,
+	env: Env,
+): Promise<Response> {
+	const authError = checkAuth(req, env);
+	if (authError) return authError;
+
+	const id = parseInt(req.params["id"] ?? "", 10);
+	if (isNaN(id)) {
+		return Response.json({ error: "Invalid id" }, { status: 400 });
+	}
+
+	const db = createDb(env.TURSO_DATABASE_URL, env.TURSO_AUTH_TOKEN);
+	// Delete associated timetable entries first
+	await db.delete(timetable).where(eq(timetable.busStopId, id));
+	await db.delete(busStops).where(eq(busStops.id, id));
+	return new Response(null, { status: 204 });
+}
+
 export async function handleGetTimetable(
 	req: IRequest,
 	env: Env,
@@ -71,8 +93,17 @@ export async function handleGetTimetable(
 		return Response.json({ error: "Invalid busStopId" }, { status: 400 });
 	}
 
+	const dayTypeStr = req.query["dayType"];
+	const dayType = Array.isArray(dayTypeStr) ? dayTypeStr[0] : dayTypeStr;
+	const validDayType =
+		dayType === "weekday" || dayType === "saturday" || dayType === "holiday"
+			? (dayType as DayType)
+			: undefined;
+
 	const db = createDb(env.TURSO_DATABASE_URL, env.TURSO_AUTH_TOKEN);
-	return Response.json(await getTimetableForBusStop(db, busStopId));
+	return Response.json(
+		await getTimetableForBusStop(db, busStopId, validDayType),
+	);
 }
 
 export async function handleCreateTimetable(

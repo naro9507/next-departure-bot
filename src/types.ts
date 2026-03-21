@@ -5,6 +5,4 @@ export interface Env {
 	LINE_CHANNEL_ACCESS_TOKEN: string;
 	ALEXA_APP_ID: string;
 	ADMIN_API_TOKEN: string;
-	// Comma-separated list of allowed IPs for /admin routes. Empty = no restriction.
-	ADMIN_ALLOWED_IPS: string;
 }

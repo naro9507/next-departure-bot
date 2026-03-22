@@ -1,6 +1,15 @@
 import { sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
+export const passkeyCredentials = sqliteTable("passkey_credentials", {
+	id: text("id").primaryKey(),
+	publicKey: text("public_key").notNull(),
+	counter: integer("counter").notNull().default(0),
+	createdAt: text("created_at")
+		.notNull()
+		.default(sql`(datetime('now'))`),
+});
+
 export const busStops = sqliteTable("bus_stops", {
 	id: integer("id").primaryKey({ autoIncrement: true }),
 	name: text("name").notNull(),

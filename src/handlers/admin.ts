@@ -12,10 +12,11 @@ import {
 } from "../repository/timeTable";
 import type { Env } from "../types";
 import type { DayType } from "../utils/time";
+import { getSessionCookie, verifySessionValue } from "../utils/session";
 
-function checkAuth(req: IRequest, env: Env): Response | null {
-	const auth = req.headers.get("Authorization");
-	if (!auth || auth !== `Bearer ${env.ADMIN_API_TOKEN}`) {
+async function checkAuth(req: IRequest, env: Env): Promise<Response | null> {
+	const session = getSessionCookie(req);
+	if (!session || !(await verifySessionValue(session, env.ADMIN_API_TOKEN))) {
 		return Response.json({ error: "Unauthorized" }, { status: 401 });
 	}
 	return null;
@@ -36,7 +37,7 @@ export async function handleGetBusStops(
 	req: IRequest,
 	env: Env,
 ): Promise<Response> {
-	const authError = checkAuth(req, env);
+	const authError = await checkAuth(req, env);
 	if (authError) return authError;
 
 	const db = createDb(env.TURSO_DATABASE_URL, env.TURSO_AUTH_TOKEN);
@@ -47,7 +48,7 @@ export async function handleCreateBusStop(
 	req: IRequest,
 	env: Env,
 ): Promise<Response> {
-	const authError = checkAuth(req, env);
+	const authError = await checkAuth(req, env);
 	if (authError) return authError;
 
 	const body = await req.json().catch(() => null);
@@ -66,7 +67,7 @@ export async function handleDeleteBusStop(
 	req: IRequest,
 	env: Env,
 ): Promise<Response> {
-	const authError = checkAuth(req, env);
+	const authError = await checkAuth(req, env);
 	if (authError) return authError;
 
 	const id = parseInt(req.params["id"] ?? "", 10);
@@ -85,7 +86,7 @@ export async function handleGetTimetable(
 	req: IRequest,
 	env: Env,
 ): Promise<Response> {
-	const authError = checkAuth(req, env);
+	const authError = await checkAuth(req, env);
 	if (authError) return authError;
 
 	const busStopId = parseInt(req.params["busStopId"] ?? "", 10);
@@ -110,7 +111,7 @@ export async function handleCreateTimetable(
 	req: IRequest,
 	env: Env,
 ): Promise<Response> {
-	const authError = checkAuth(req, env);
+	const authError = await checkAuth(req, env);
 	if (authError) return authError;
 
 	const body = await req.json().catch(() => null);
@@ -129,7 +130,7 @@ export async function handleDeleteTimetable(
 	req: IRequest,
 	env: Env,
 ): Promise<Response> {
-	const authError = checkAuth(req, env);
+	const authError = await checkAuth(req, env);
 	if (authError) return authError;
 
 	const id = parseInt(req.params["id"] ?? "", 10);

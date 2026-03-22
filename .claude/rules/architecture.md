@@ -61,7 +61,13 @@ Workers シークレットはスクリプトが存在してから設定できる
 
 - IP 制限は Cloudflare WAF カスタムルールで行う（コードで実装しない）
 - 許可 IP は `terraform/terraform.tfvars` の `admin_allowed_ips` で管理
-- エンドポイント認証は Bearer Token (`ADMIN_API_TOKEN`)
+- エンドポイント認証は **パスキー (WebAuthn / FIDO2)** + **HttpOnly Cookie セッション**
+  - Bearer Token 認証は廃止済み（`ADMIN_API_TOKEN` は初回パスキー登録のブートストラップ用のみ）
+  - 認証ライブラリ: `@simplewebauthn/server`（Cloudflare Workers 対応、Web Crypto API 使用）
+  - セッション Cookie: HMAC-SHA256 署名、`HttpOnly; SameSite=Strict`、24時間有効
+  - チャレンジ管理: HMAC 署名によるステートレス方式（DB/KV 不要、5分有効）
+  - パスキー公開鍵は `passkey_credentials` テーブル (Turso) に保存
+  - 関連ファイル: `src/handlers/auth.ts` / `src/repository/passkey.ts` / `src/utils/session.ts`
 
 ## コミット前チェック
 

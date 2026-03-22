@@ -21,4 +21,10 @@ LINE・Alexa からバス発車時刻を問い合わせるボット。Cloudflare
 | `POST` | `/line` | LINE Webhook |
 | `POST` | `/alexa` | Alexa スキル |
 | `GET` | `/admin` | 管理画面 (IP 制限あり) |
-| `*` | `/admin/api/*` | 管理 REST API (Bearer 認証) |
+| `GET` | `/admin/api/auth/status` | パスキー登録状態確認 |
+| `POST` | `/admin/api/auth/register/start` | パスキー登録開始 (Bearer bootstrap) |
+| `POST` | `/admin/api/auth/register/finish` | パスキー登録完了 |
+| `POST` | `/admin/api/auth/login/start` | パスキーログイン開始 |
+| `POST` | `/admin/api/auth/login/finish` | パスキーログイン完了 → Cookie 発行 |
+| `POST` | `/admin/api/auth/logout` | ログアウト (Cookie 削除) |
+| `*` | `/admin/api/*` | 管理 REST API (Cookie セッション認証) |

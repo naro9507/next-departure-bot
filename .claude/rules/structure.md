@@ -5,16 +5,19 @@ src/
 ├── index.ts               # ルーティング定義 (itty-router AutoRouter)
 ├── types.ts               # Env インターフェース (Workers シークレット一覧)
 ├── db/
-│   ├── schema.ts          # Drizzle スキーマ定義 (bus_stops, timetable)
+│   ├── schema.ts          # Drizzle スキーマ定義 (bus_stops, timetable, passkey_credentials)
 │   └── client.ts          # @libsql/client/web ファクトリ関数
 ├── utils/
-│   └── time.ts            # JST 時刻取得・フォーマットユーティリティ
+│   ├── time.ts            # JST 時刻取得・フォーマットユーティリティ
+│   └── session.ts         # HMAC-SHA256 署名付き HttpOnly Cookie ユーティリティ
 ├── repository/
-│   └── timeTable.ts       # DB クエリ関数 (次発時刻・CRUD)
+│   ├── timeTable.ts       # DB クエリ関数 (次発時刻・CRUD)
+│   └── passkey.ts         # パスキークレデンシャル CRUD
 └── handlers/
     ├── search.ts          # GET /search?busStopId=N
-    ├── admin.ts           # /admin/api/* の REST API ハンドラ
-    ├── adminPage.ts       # GET /admin の Alpine.js HTML
+    ├── admin.ts           # /admin/api/* の REST API ハンドラ (Cookie セッション認証)
+    ├── adminPage.ts       # GET /admin の Alpine.js HTML (パスキー UI)
+    ├── auth.ts            # /admin/api/auth/* (WebAuthn 登録・認証・ログアウト)
     ├── line.ts            # POST /line (LINE Webhook)
     └── alexa.ts           # POST /alexa (Alexa スキル)
 
@@ -45,9 +48,11 @@ terraform/
 ## DB スキーマ
 
 ```
-bus_stops   id, name, created_at
-timetable   id, bus_stop_id, day_type(weekday|saturday|holiday), hour, minute, created_at
+bus_stops            id, name, created_at
+timetable            id, bus_stop_id, day_type(weekday|saturday|holiday), hour, minute, created_at
+passkey_credentials  id(credential_id), public_key, counter, created_at
 ```
 
 - `hour` は 0〜30（終電が翌日にまたぐ場合は 24 以上）
 - `day_type` は JST の曜日で自動判定（日曜 → holiday）
+- `passkey_credentials.public_key` は COSE 公開鍵を base64url エンコードして保存

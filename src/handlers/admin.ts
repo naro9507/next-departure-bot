@@ -2,15 +2,18 @@ import type { IRequest } from "itty-router";
 import { z } from "zod";
 import { createDb } from "../db/client";
 import {
+	bulkAddTimetableEntries,
 	createBusStop,
 	createTimetableEntry,
 	deleteBusStop,
 	deleteTimetableEntry,
 	getAllBusStops,
+	getBusStopById,
 	getTimetableForBusStop,
 } from "../repository/timeTable";
 import type { Env } from "../types";
 import type { DayType } from "../utils/time";
+import { parseTimes } from "../utils/parseTimes";
 import { getSessionCookie, verifySessionValue } from "../utils/session";
 
 async function checkAuth(req: IRequest, env: Env): Promise<Response | null> {
@@ -138,4 +141,63 @@ export async function handleDeleteTimetable(
 	const db = createDb(env.TURSO_DATABASE_URL, env.TURSO_AUTH_TOKEN);
 	await deleteTimetableEntry(db, id);
 	return new Response(null, { status: 204 });
+}
+
+const BulkTimetableSchema = z.object({
+	busStopId: z.number().int().positive(),
+	dayType: z.enum(["weekday", "saturday", "holiday"]),
+	text: z.string().min(1).max(20000),
+	replace: z.boolean().default(false),
+});
+
+const MAX_BULK_TIMES = 500;
+
+/**
+ * POST /admin/api/timetable/bulk
+ * 貼り付けたテキストから時刻をまとめて登録する。解釈できない箇所が 1 つでもあれば何も登録しない。
+ */
+export async function handleBulkCreateTimetable(
+	req: IRequest,
+	env: Env,
+): Promise<Response> {
+	const authError = await checkAuth(req, env);
+	if (authError) return authError;
+
+	const body = await req.json().catch(() => null);
+	const parsed = BulkTimetableSchema.safeParse(body);
+	if (!parsed.success) {
+		return Response.json({ error: parsed.error.flatten() }, { status: 400 });
+	}
+	const { busStopId, dayType, text, replace } = parsed.data;
+
+	const { times, errors } = parseTimes(text);
+	if (errors.length > 0) {
+		return Response.json(
+			{ error: "解釈できない時刻があります", details: errors },
+			{ status: 400 },
+		);
+	}
+	if (times.length === 0) {
+		return Response.json({ error: "時刻が見つかりません" }, { status: 400 });
+	}
+	if (times.length > MAX_BULK_TIMES) {
+		return Response.json(
+			{ error: `一度に登録できるのは ${MAX_BULK_TIMES} 件までです` },
+			{ status: 400 },
+		);
+	}
+
+	const db = createDb(env.TURSO_DATABASE_URL, env.TURSO_AUTH_TOKEN);
+	if (!(await getBusStopById(db, busStopId))) {
+		return Response.json({ error: "bus stop not found" }, { status: 404 });
+	}
+
+	const result = await bulkAddTimetableEntries(
+		db,
+		busStopId,
+		dayType,
+		times,
+		replace,
+	);
+	return Response.json(result, { status: 201 });
 }

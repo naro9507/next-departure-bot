@@ -1,5 +1,6 @@
 import { AutoRouter } from "itty-router";
 import {
+	handleBulkCreateTimetable,
 	handleCreateBusStop,
 	handleCreateTimetable,
 	handleDeleteBusStop,
@@ -42,6 +43,7 @@ router
 	.delete("/admin/api/bus-stops/:id", handleDeleteBusStop)
 	.get("/admin/api/timetable/:busStopId", handleGetTimetable)
 	.post("/admin/api/timetable", handleCreateTimetable)
+	.post("/admin/api/timetable/bulk", handleBulkCreateTimetable)
 	.delete("/admin/api/timetable/:id", handleDeleteTimetable);
 
 export default {

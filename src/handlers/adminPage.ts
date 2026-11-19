@@ -74,6 +74,13 @@ export function renderAdminPage(): Response {
     .spinner { display: inline-block; width: 1.4rem; height: 1.4rem; border: 2px solid #ccc;
       border-top-color: #3b82f6; border-radius: 50%; animation: spin .7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .hint { font-size: .8rem; color: #666; margin-bottom: .5rem; line-height: 1.6; }
+    .hint code { background: #f1f5f9; padding: 0 .3rem; border-radius: 4px; }
+    .bulk-text { width: 100%; box-sizing: border-box; padding: .6rem; border: 1px solid #ddd;
+                 border-radius: 6px; font-family: ui-monospace, monospace; font-size: .9rem; }
+    .bulk-replace { display: flex; align-items: center; gap: .4rem; font-size: .85rem; color: #555; margin-top: .5rem; }
+    .bulk-details { margin: .4rem 0 0 1.2rem; font-size: .8rem; }
+    .msg-success { padding: .6rem .9rem; background: #dcfce7; color: #166534; border-radius: 6px; font-size: .85rem; }
   </style>
 </head>
 <body>
@@ -161,7 +168,7 @@ export function renderAdminPage(): Response {
             <div class="day-tabs">
               <template x-for="d in dayTypes" :key="d.value">
                 <button class="day-tab" :class="{ active: currentDay === d.value }"
-                        @click="currentDay = d.value; loadTimetable()" x-text="d.label"></button>
+                        @click="currentDay = d.value; bulkResult = ''; bulkError = ''; loadTimetable()" x-text="d.label"></button>
               </template>
             </div>
             <div x-show="timetable.length > 0" class="time-grid">
@@ -187,6 +194,28 @@ export function renderAdminPage(): Response {
               <button class="btn btn-primary" @click="addTime()">追加</button>
             </div>
             <div x-show="timeError" class="msg-error mt-1" x-text="timeError"></div>
+            <div class="sep"></div>
+            <h3>まとめて登録</h3>
+            <p class="hint">
+              時刻を並べる（<code>6:30, 6:45 7:00</code>）か、時刻表の行形式（<code>6: 05 25 45</code>）で貼り付けてください。
+              全角・「6時30分」も可。24 時以降は <code>24:10</code> のように入力します。
+            </p>
+            <textarea class="bulk-text" x-model="bulkText" rows="6"
+                      placeholder="6: 05 25 45&#10;7: 00 15 30 45&#10;8: 10 40"></textarea>
+            <label class="bulk-replace">
+              <input type="checkbox" x-model="bulkReplace" />
+              <span>この区分（<span x-text="dayTypes.find(d => d.value === currentDay)?.label"></span>）の既存の時刻をすべて置き換える</span>
+            </label>
+            <button class="btn btn-primary mt-1" @click="bulkAdd()" :disabled="loading || !bulkText.trim()">
+              <span x-text="loading ? '登録中...' : 'まとめて登録'"></span>
+            </button>
+            <div x-show="bulkResult" class="msg-success mt-1" x-text="bulkResult"></div>
+            <div x-show="bulkError" class="msg-error mt-1">
+              <div x-text="bulkError"></div>
+              <ul x-show="bulkDetails.length > 0" class="bulk-details">
+                <template x-for="d in bulkDetails"><li x-text="d"></li></template>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
@@ -258,6 +287,7 @@ function app() {
     ],
     currentDay: 'weekday', timetable: [],
     newHour: '', newMinute: '', timeError: '',
+    bulkText: '', bulkReplace: false, bulkResult: '', bulkError: '', bulkDetails: [],
 
     async init() {
       const { registered } = await fetch('/admin/api/auth/status').then(r => r.json());
@@ -371,6 +401,30 @@ function app() {
         this.timetable.sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute));
         this.newHour = ''; this.newMinute = '';
       } else { this.timeError = '追加に失敗しました'; }
+    },
+    async bulkAdd() {
+      this.bulkResult = ''; this.bulkError = ''; this.bulkDetails = [];
+      const label = this.dayTypes.find(d => d.value === this.currentDay)?.label;
+      if (this.bulkReplace && !confirm(label + 'の既存の時刻をすべて削除して置き換えますか？')) return;
+      this.loading = true;
+      try {
+        const res = await this.api('POST', '/admin/api/timetable/bulk', {
+          busStopId: this.selectedStop.id, dayType: this.currentDay,
+          text: this.bulkText, replace: this.bulkReplace,
+        });
+        if (!res) return;
+        if (typeof res.added === 'number') {
+          const parts = [res.added + '件追加'];
+          if (res.skipped) parts.push(res.skipped + '件は登録済みのためスキップ');
+          if (res.deleted) parts.push('既存の' + res.deleted + '件を削除');
+          this.bulkResult = parts.join('、');
+          this.bulkText = ''; this.bulkReplace = false;
+          await this.loadTimetable();
+        } else {
+          this.bulkError = typeof res.error === 'string' ? res.error : '登録に失敗しました';
+          this.bulkDetails = res.details || [];
+        }
+      } finally { this.loading = false; }
     },
     async deleteTime(id) {
       await this.api('DELETE', '/admin/api/timetable/' + id);

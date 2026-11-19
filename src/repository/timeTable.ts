@@ -130,3 +130,47 @@ export async function createTimetableEntry(
 export async function deleteTimetableEntry(db: Db, id: number) {
 	await db.delete(timetable).where(eq(timetable.id, id));
 }
+
+/**
+ * 時刻をまとめて登録する。
+ * - replace = true: そのバス停・曜日区分の既存時刻を削除してから登録 (1 トランザクション)
+ * - replace = false: 既に登録済みの時刻はスキップして追加
+ */
+export async function bulkAddTimetableEntries(
+	db: Db,
+	busStopId: number,
+	dayType: DayType,
+	times: { hour: number; minute: number }[],
+	replace: boolean,
+): Promise<{ added: number; skipped: number; deleted: number }> {
+	const sameStopAndDay = and(
+		eq(timetable.busStopId, busStopId),
+		eq(timetable.dayType, dayType),
+	);
+
+	const existing = await db
+		.select({ hour: timetable.hour, minute: timetable.minute })
+		.from(timetable)
+		.where(sameStopAndDay);
+
+	const existingKeys = new Set(existing.map((e) => e.hour * 60 + e.minute));
+	const toInsert = (replace
+		? times
+		: times.filter((t) => !existingKeys.has(t.hour * 60 + t.minute)))
+		.map((t) => ({ busStopId, dayType, hour: t.hour, minute: t.minute }));
+
+	const insert = toInsert.length > 0 ? db.insert(timetable).values(toInsert) : null;
+
+	if (replace) {
+		const del = db.delete(timetable).where(sameStopAndDay);
+		await (insert ? db.batch([del, insert]) : del);
+	} else if (insert) {
+		await insert;
+	}
+
+	return {
+		added: toInsert.length,
+		skipped: times.length - toInsert.length,
+		deleted: replace ? existing.length : 0,
+	};
+}

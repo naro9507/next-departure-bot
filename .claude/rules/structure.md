@@ -11,9 +11,10 @@ src/
 │   ├── time.ts            # JST 時刻取得 (曜日区分・前日区分)・表示/読み上げフォーマット
 │   ├── holiday.ts         # 日本の祝日判定 (祝日・振替休日・国民の休日、計算式のみ)
 │   ├── parseBusStopId.ts  # LINE メッセージ → バス停 ID (全角・漢数字対応)
+│   ├── parseTimes.ts      # 管理画面の一括登録テキスト → 時刻リスト
 │   └── session.ts         # HMAC-SHA256 署名付き HttpOnly Cookie ユーティリティ
 ├── repository/
-│   ├── timeTable.ts       # DB クエリ関数 (次発時刻 [日跨ぎ対応]・バス停/時刻表 CRUD)
+│   ├── timeTable.ts       # DB クエリ関数 (次発時刻 [日跨ぎ対応]・バス停/時刻表 CRUD・一括登録)
 │   └── passkey.ts         # パスキークレデンシャル CRUD
 └── handlers/
     ├── search.ts          # GET /search?busStopId=N
@@ -27,6 +28,7 @@ test/                      # bun test のユニットテスト (tsc の対象外
 ├── holiday.test.ts
 ├── time.test.ts           # getJSTTime / formatTime / pickNextDeparture
 ├── parseBusStopId.test.ts
+├── parseTimes.test.ts
 ├── timeTable.test.ts      # インメモリ libSQL で次発検索・削除の SQL を検証
 └── alexa.test.ts          # DB を使わない経路のみ
 

@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import type { Db } from "../src/db/client";
 import * as schema from "../src/db/schema";
 import {
+	bulkAddTimetableEntries,
 	createBusStop,
 	createTimetableEntry,
 	deleteBusStop,
@@ -66,5 +67,23 @@ describe("timeTable repository", () => {
 		await deleteBusStop(db, stopId);
 		expect(await getBusStopById(db, stopId)).toBeNull();
 		expect(await getTimetableForBusStop(db, stopId)).toEqual([]);
+	});
+
+	test("bulkAdd (追加): 登録済みの時刻はスキップ", async () => {
+		const r = await bulkAddTimetableEntries(db, stopId, "weekday", [
+			{ hour: 6, minute: 30 },
+			{ hour: 6, minute: 45 },
+		], false);
+		expect(r).toEqual({ added: 1, skipped: 1, deleted: 0 });
+		const rows = await getTimetableForBusStop(db, stopId, "weekday");
+		expect(rows.map((t) => `${t.hour}:${t.minute}`)).toEqual(["6:30", "6:45", "23:50", "24:20"]);
+	});
+
+	test("bulkAdd (置き換え): 同じ区分だけ入れ替わる", async () => {
+		const r = await bulkAddTimetableEntries(db, stopId, "weekday", [{ hour: 8, minute: 0 }], true);
+		expect(r).toEqual({ added: 1, skipped: 0, deleted: 3 });
+		const weekday = await getTimetableForBusStop(db, stopId, "weekday");
+		expect(weekday.map((t) => `${t.hour}:${t.minute}`)).toEqual(["8:0"]);
+		expect(await getTimetableForBusStop(db, stopId, "holiday")).toHaveLength(2);
 	});
 });

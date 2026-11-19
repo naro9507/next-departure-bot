@@ -31,6 +31,17 @@ ORM: Drizzle ORM
 | `minute` | INTEGER | NOT NULL | 分（0〜59） |
 | `created_at` | TEXT | NOT NULL, DEFAULT `datetime('now')` | 作成日時（UTC） |
 
+### passkey_credentials
+
+管理画面ログイン用のパスキー（WebAuthn クレデンシャル）。
+
+| カラム | 型 | 制約 | 説明 |
+|--------|-----|------|------|
+| `id` | TEXT | PRIMARY KEY | クレデンシャル ID（base64url） |
+| `public_key` | TEXT | NOT NULL | COSE 公開鍵（base64url） |
+| `counter` | INTEGER | NOT NULL, DEFAULT 0 | 署名カウンタ（リプレイ検出用） |
+| `created_at` | TEXT | NOT NULL, DEFAULT `datetime('now')` | 作成日時（UTC） |
+
 ---
 
 ## 設計の補足
@@ -42,21 +53,35 @@ ORM: Drizzle ORM
 
 表示時は `hour % 24` を使い、24 以上の場合は `(翌日)` を付加する（`src/utils/time.ts` の `formatTime` 関数）。
 
+### 日付をまたぐ便の検索
+
+`getNextDeparture()`（`src/repository/timeTable.ts`）は 2 つの候補を並列に検索し、早い方を返す。
+
+1. 今日の `day_type` で、現在時刻より後の便
+2. 前日の `day_type` で、`hour * 60 + minute > 現在分 + 1440` の便（＝前日ダイヤの 24 時以降の便）
+
+2 の便は今日の時刻（`hour - 24`）に直して返す。比較は純粋関数 `pickNextDeparture()` で行う。
+
 ### day_type の判定
 
-`src/utils/time.ts` の `getJSTTime()` で JST の曜日を判定する。
+`src/utils/time.ts` の `getJSTTime()` で JST の曜日を判定する。前日の区分（`previousDayType`）も同時に返す。
 
-| JST の曜日 | day_type |
+| JST の日付 | day_type |
 |-----------|----------|
-| 月〜金 | `weekday` |
-| 土曜日 | `saturday` |
-| 日曜日 | `holiday` |
+| 日曜日・祝日 | `holiday` |
+| 土曜日（祝日でない） | `saturday` |
+| 月〜金（祝日でない） | `weekday` |
 
-祝日は現在 `holiday` として別途管理していない。必要であれば祝日判定ロジックを `getJSTTime()` に追加する。
+祝日判定は `src/utils/holiday.ts` の `isJapaneseHoliday()`（外部 API 不要の計算式）。
+
+- 国民の祝日（2022 年以降の法律に準拠。春分・秋分は 1980〜2099 年の近似式）
+- 振替休日（日曜の祝日以降、最初の祝日でない日）
+- 国民の休日（祝日に挟まれた日。例: 2026-09-22）
+- 年末年始（12/29〜1/3）や臨時ダイヤは対象外
 
 ### バス停削除時のカスケード
 
-`DELETE /admin/api/bus-stops/:id` では、対象バス停に紐づく `timetable` レコードを先に削除してから `bus_stops` を削除する（SQLite は外部キー制約のカスケード削除がデフォルト無効のため、アプリ側で制御）。
+`DELETE /admin/api/bus-stops/:id` では、`deleteBusStop()` が `timetable` → `bus_stops` の順に削除する。2 つの DELETE は `db.batch()` で 1 トランザクションとして実行する（SQLite は外部キー制約のカスケード削除がデフォルト無効のため、アプリ側で制御）。
 
 ---
 

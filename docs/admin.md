@@ -13,7 +13,7 @@ Alpine.js を使ったシングルページアプリ。HTML は `src/handlers/ad
 | レイヤー | 方法 | 設定場所 |
 |---------|------|---------|
 | IP 制限 | Cloudflare WAF カスタムルール | `terraform/waf.tf` の `admin_allowed_ips` |
-| 認証 | Bearer Token（ブラウザの localStorage に保存） | `ADMIN_API_TOKEN` シークレット |
+| 認証 | パスキー (WebAuthn) + HttpOnly Cookie セッション（24 時間） | `passkey_credentials` テーブル / `ADMIN_API_TOKEN` |
 
 IP 制限はコード側では実装しない。WAF がブロックするため Workers まで到達しない。
 
@@ -21,12 +21,18 @@ IP 制限はコード側では実装しない。WAF がブロックするため 
 
 ## 画面構成
 
-### ログイン画面
+### 認証画面
 
-- `ADMIN_API_TOKEN` の値を入力するフォーム
-- 入力値は `localStorage` の `admin_token` キーに保存
-- Enter キーまたはボタンでログイン
-- 認証失敗（401）時はエラーメッセージを表示
+起動時に `GET /admin/api/auth/status` でパスキー登録状態を確認し、表示を切り替える。
+
+| 状態 | 表示 |
+|------|------|
+| 未登録 (`registered: false`) | `ADMIN_API_TOKEN` 入力欄 +「パスキーを登録」ボタン（初回のみ） |
+| 登録済み | 「パスキーでログイン」ボタン |
+
+- パスキー登録: `register/start` → `navigator.credentials.create()` → `register/finish`（どちらも `Authorization: Bearer <ADMIN_API_TOKEN>`）
+- ログイン: `login/start` → `navigator.credentials.get()` → `login/finish` → `admin_session` Cookie 発行
+- トークンやセッションをブラウザのストレージには保存しない（Cookie は HttpOnly）
 
 ### メイン画面（ログイン後）
 
@@ -54,9 +60,10 @@ IP 制限はコード側では実装しない。WAF がブロックするため 
 ## API 通信
 
 フロントエンド（Alpine.js）から `/admin/api/*` への fetch で通信する。
-すべてのリクエストに `Authorization: Bearer <token>` ヘッダーを付与する。
+`credentials: 'same-origin'` で `admin_session` Cookie（HttpOnly / SameSite=Strict）を送る。
 
-401 レスポンスを受け取った場合は自動でログアウト（localStorage のトークンを削除）。
+401 レスポンスを受け取った場合はログイン画面に戻る。
+ヘッダーの「ログアウト」で `POST /admin/api/auth/logout` を呼び Cookie を削除する。
 
 ---
 
@@ -64,7 +71,8 @@ IP 制限はコード側では実装しない。WAF がブロックするため 
 
 ```js
 {
-  token: string,          // ログイントークン (localStorage)
+  status: 'loading' | 'unregistered' | 'registered' | 'loggedIn',
+  regToken: string,       // 初回パスキー登録用の ADMIN_API_TOKEN（保存しない）
   busStops: BusStop[],    // バス停一覧
   selectedStop: BusStop | null,
   currentDay: 'weekday' | 'saturday' | 'holiday',

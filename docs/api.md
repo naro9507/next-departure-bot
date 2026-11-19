@@ -32,6 +32,7 @@ Base URL: `https://<worker-name>.<account>.workers.dev`
 ```json
 {
   "busStopId": 1,
+  "busStopName": "〇〇駅前",
   "message": "本日の残りのバスはありません"
 }
 ```
@@ -43,16 +44,25 @@ Base URL: `https://<worker-name>.<account>.workers.dev`
 { "error": "busStopId must be a number" }
 ```
 
+**レスポンス 404**（バス停が存在しない）
+
+```json
+{ "error": "bus stop not found" }
+```
+
 **備考**
 - 現在時刻は JST で評価する
-- 曜日は JST 基準で weekday / saturday / holiday を自動判定（日曜 → holiday）
+- 曜日は JST 基準で weekday / saturday / holiday を自動判定（日曜・祝日・振替休日・国民の休日 → holiday）
 - `hour` が 24 以上の場合、`formatted` は `"00:05(翌日)"` のように表示
+- 日付をまたいだ直後（例: 0:10）は、前日ダイヤの 24 時以降の便（例: 24:30）も候補に含める。
+  この場合は今日の時刻に直して返す（`hour: 0, minute: 30, formatted: "00:30"`）
 
 ---
 
 ## Admin API
 
-すべてのエンドポイントに `Authorization: Bearer <ADMIN_API_TOKEN>` ヘッダーが必要。
+すべてのエンドポイントにパスキーログインで発行された `admin_session` Cookie が必要（無効なら 401）。
+認証フローは `/admin/api/auth/*` を参照（[admin.md](./admin.md)）。
 
 ### GET /admin/api/bus-stops — バス停一覧
 
@@ -89,7 +99,7 @@ Base URL: `https://<worker-name>.<account>.workers.dev`
 
 ### DELETE /admin/api/bus-stops/:id — バス停を削除
 
-バス停に紐づく時刻表エントリもすべて削除される（カスケード削除）。
+バス停に紐づく時刻表エントリもすべて削除される（`db.batch` で 1 トランザクションとして実行）。
 
 **レスポンス 204** (No Content)
 
@@ -160,21 +170,32 @@ LINE プラットフォームからのイベントを受信する。
 |---------|------|
 | `x-line-signature` | HMAC-SHA256 署名（Base64）|
 
-署名検証は Web Crypto API (`crypto.subtle`) で行う。検証失敗時は 401 を返す。
+署名検証は Web Crypto API (`crypto.subtle.verify`) で行う（定数時間比較）。検証失敗時は 401 を返す。
 
 **対応イベント**
 
 - `message` イベント（type: `text`）のみ処理する
 
-**メッセージ解析ルール**
+**メッセージ解析ルール**（`src/utils/parseBusStopId.ts`）
+
+入力は NFKC 正規化（全角 → 半角）し、漢数字（〜九百九十九）を算用数字に変換してから解釈する。
 
 | 入力例 | 解釈 |
 |--------|------|
-| `1`, `１`, `一` | バス停 ID = 1 |
-| `2`, `２`, `二` | バス停 ID = 2 |
-| `1番`, `バス停1` | バス停 ID = 1 |
-| 数字文字列 | その数値を ID として使用 |
-| 上記以外 | バス停一覧を返信 |
+| `3`, `３`, `三`, `十二` | その数値をバス停 ID とする |
+| `3番`, `5番のバス` | 先頭の「N番」 |
+| `バス停3`, `バス停 十` | 「バス停N」 |
+| 上記以外（`一覧` など） | バス停一覧を返信 |
+
+**返信内容**
+
+| 状況 | 返信 |
+|------|------|
+| 次のバスあり | `〇〇駅前の次のバス: 14:35発` |
+| 本日の残りなし | `〇〇駅前の本日の残りのバスはありません` |
+| バス停が存在しない | `N番のバス停は見つかりませんでした…` |
+
+返信 API が失敗した場合は `console.error` でログに残す。
 
 **レスポンス 200** `OK`（LINE の仕様上、常に 200 を返す）
 
@@ -186,17 +207,35 @@ LINE プラットフォームからのイベントを受信する。
 
 Alexa Skills Kit からのリクエストを処理する。
 
-**対応 IntentRequest**
+**リクエスト検証**
 
-| Intent | 動作 |
-|--------|------|
-| `GetNextBusIntent` | スロット `BusStop`（数値）のバス停の次の発車時刻を返す |
-| `AMAZON.HelpIntent` | 使い方を案内 |
-| `AMAZON.StopIntent` / `AMAZON.CancelIntent` | セッション終了 |
+| 検証 | 失敗時 |
+|------|-------|
+| JSON として解析でき `request.type` がある | 400 |
+| `ALEXA_APP_ID` 設定時、`context.System.application.applicationId`（なければ `session.application.applicationId`）が一致 | 403 |
+| `request.timestamp` が現在時刻 ±150 秒以内 | 400 |
 
-`LaunchRequest` 時はバス停番号の入力を促す。
+> ⚠️ Alexa の署名検証（`SignatureCertChainUrl` / `Signature-256`）は未実装。Lambda 以外でホストするスキルを公開審査に出す場合は必須。
 
-`ALEXA_APP_ID` が設定されている場合、リクエストのアプリケーション ID を検証する。
+**対応リクエスト**
+
+| 種別 | 動作 |
+|------|------|
+| `LaunchRequest` | バス停番号を尋ねる（セッション継続 + reprompt） |
+| `IntentRequest` / `GetNextBusIntent` | スロット `BusStop`（数値）のバス停の次の発車時刻を返す |
+| `IntentRequest` / `AMAZON.HelpIntent`, `AMAZON.FallbackIntent` | 使い方を案内（セッション継続） |
+| `IntentRequest` / `AMAZON.StopIntent`, `AMAZON.CancelIntent` | セッション終了 |
+| `SessionEndedRequest` | 空の `response` を返す（音声なし） |
+
+`GetNextBusIntent` で番号が取れない・バス停が存在しない場合は聞き返す（セッション継続）。
+
+**読み上げ形式**（`formatTimeForSpeech`）
+
+| 時刻 | 読み上げ |
+|------|---------|
+| 7:00 | 7時 |
+| 14:35 | 14時35分 |
+| 24:38 | 深夜0時38分 |
 
 **レスポンス形式**
 

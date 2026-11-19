@@ -7,5 +7,6 @@
 		"skipLibCheck": true,
 		"lib": ["ESNext"],
 		"types": ["@cloudflare/workers-types"]
-	}
+	},
+	"exclude": ["test", "node_modules"]
 }

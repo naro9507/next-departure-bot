@@ -67,7 +67,7 @@ WAF ルールの式:
 | `line_channel_secret` | LINE チャンネルシークレット |
 | `line_channel_access_token` | LINE チャンネルアクセストークン |
 | `alexa_app_id` | Alexa スキルアプリケーション ID |
-| `admin_api_token` | 管理 API の Bearer トークン |
+| `admin_api_token` | 初回パスキー登録用のブートストラップトークン（セッション Cookie / チャレンジの HMAC 鍵も兼ねる） |
 
 ---
 

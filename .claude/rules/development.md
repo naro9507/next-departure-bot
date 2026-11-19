@@ -6,6 +6,7 @@
 bun run dev          # ローカル開発サーバー起動 (wrangler dev)
 bun run deploy       # Cloudflare Workers にデプロイ
 bun run lint         # oxlint でコードチェック
+bun run test         # bun test でユニットテスト (test/)
 bun run format       # dprint でフォーマット
 bun run db:generate  # Drizzle マイグレーションファイル生成
 bun run db:push      # スキーマを Turso に直接適用
@@ -17,9 +18,10 @@ bun run cf-typegen   # Cloudflare バインディング型を生成
 ```bash
 bunx tsc --noEmit   # 型エラーがゼロであること
 bun run lint        # oxlint の警告・エラーがゼロであること
+bun run test        # テストがすべて通ること
 ```
 
-どちらかが失敗したままコミットしない。
+いずれかが失敗したままコミットしない。
 
 ## ブランチ運用
 

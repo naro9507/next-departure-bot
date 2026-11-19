@@ -1,11 +1,10 @@
-import { eq } from "drizzle-orm";
 import type { IRequest } from "itty-router";
 import { z } from "zod";
 import { createDb } from "../db/client";
-import { busStops, timetable } from "../db/schema";
 import {
 	createBusStop,
 	createTimetableEntry,
+	deleteBusStop,
 	deleteTimetableEntry,
 	getAllBusStops,
 	getTimetableForBusStop,
@@ -76,9 +75,7 @@ export async function handleDeleteBusStop(
 	}
 
 	const db = createDb(env.TURSO_DATABASE_URL, env.TURSO_AUTH_TOKEN);
-	// Delete associated timetable entries first
-	await db.delete(timetable).where(eq(timetable.busStopId, id));
-	await db.delete(busStops).where(eq(busStops.id, id));
+	await deleteBusStop(db, id);
 	return new Response(null, { status: 204 });
 }
 

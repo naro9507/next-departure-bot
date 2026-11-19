@@ -12,6 +12,7 @@
 		"dev": "wrangler dev",
 		"deploy": "wrangler deploy --minify",
 		"lint": "oxlint src",
+		"test": "bun test",
 		"format": "dprint fmt",
 		"db:generate": "drizzle-kit generate",
 		"db:push": "drizzle-kit push",

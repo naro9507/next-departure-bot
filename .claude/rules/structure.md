@@ -8,10 +8,12 @@ src/
 │   ├── schema.ts          # Drizzle スキーマ定義 (bus_stops, timetable, passkey_credentials)
 │   └── client.ts          # @libsql/client/web ファクトリ関数
 ├── utils/
-│   ├── time.ts            # JST 時刻取得・フォーマットユーティリティ
+│   ├── time.ts            # JST 時刻取得 (曜日区分・前日区分)・表示/読み上げフォーマット
+│   ├── holiday.ts         # 日本の祝日判定 (祝日・振替休日・国民の休日、計算式のみ)
+│   ├── parseBusStopId.ts  # LINE メッセージ → バス停 ID (全角・漢数字対応)
 │   └── session.ts         # HMAC-SHA256 署名付き HttpOnly Cookie ユーティリティ
 ├── repository/
-│   ├── timeTable.ts       # DB クエリ関数 (次発時刻・CRUD)
+│   ├── timeTable.ts       # DB クエリ関数 (次発時刻 [日跨ぎ対応]・バス停/時刻表 CRUD)
 │   └── passkey.ts         # パスキークレデンシャル CRUD
 └── handlers/
     ├── search.ts          # GET /search?busStopId=N
@@ -20,6 +22,13 @@ src/
     ├── auth.ts            # /admin/api/auth/* (WebAuthn 登録・認証・ログアウト)
     ├── line.ts            # POST /line (LINE Webhook)
     └── alexa.ts           # POST /alexa (Alexa スキル)
+
+test/                      # bun test のユニットテスト (tsc の対象外)
+├── holiday.test.ts
+├── time.test.ts           # getJSTTime / formatTime / pickNextDeparture
+├── parseBusStopId.test.ts
+├── timeTable.test.ts      # インメモリ libSQL で次発検索・削除の SQL を検証
+└── alexa.test.ts          # DB を使わない経路のみ
 
 terraform/
 ├── providers.tf           # cloudflare ~>5.0, turso-dev/turso ~>0.1
@@ -54,5 +63,6 @@ passkey_credentials  id(credential_id), public_key, counter, created_at
 ```
 
 - `hour` は 0〜30（終電が翌日にまたぐ場合は 24 以上）
-- `day_type` は JST の曜日で自動判定（日曜 → holiday）
+- `day_type` は JST の日付で自動判定（日曜・祝日 → holiday）
+- 0 時台などは前日の `day_type` の 24 時以降の便も次発候補にする
 - `passkey_credentials.public_key` は COSE 公開鍵を base64url エンコードして保存

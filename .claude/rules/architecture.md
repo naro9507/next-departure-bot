@@ -76,9 +76,24 @@ Workers シークレットはスクリプトが存在してから設定できる
 ```bash
 bunx tsc --noEmit   # 型エラーがないこと
 bun run lint        # oxlint でエラーがないこと
+bun run test        # ユニットテストが通ること
 ```
 
 ## JST 時刻
 
 Cloudflare Workers は UTC で動作する。JST 変換は `src/utils/time.ts` の `getJSTTime()` を使う。
-直接 `new Date()` から時刻を取得してはいけない。
+直接 `new Date()` から時刻を取得してはいけない（テストでは `getJSTTime(now)` に Date を渡す）。
+
+- `getJSTTime()` は `dayType`（今日）と `previousDayType`（前日）を返す。祝日は `src/utils/holiday.ts` で判定し holiday 扱い
+- 次発検索は `getNextDeparture(db, busStopId, getJSTTime())` を使う。前日ダイヤの 24 時以降の便も自動で考慮される
+- 表示は `formatTime()`、音声読み上げ（Alexa）は `formatTimeForSpeech()` を使う
+
+## テスト
+
+- `bun test` を使う。テストは `test/` に置き、`tsconfig.json` の `exclude` で tsc の対象外にしている（`bun:test` の型と Workers の型が衝突するため）
+- ロジックは DB に依存しない純粋関数に切り出してテストする（例: `pickNextDeparture`、`parseBusStopId`）
+
+## 外部リクエストの検証
+
+- LINE: `x-line-signature` を `crypto.subtle.verify` で検証（文字列の `===` 比較はしない）
+- Alexa: アプリケーション ID（`context.System` 優先）とタイムスタンプ（±150 秒）を検証。署名検証は未実装

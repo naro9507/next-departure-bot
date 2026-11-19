@@ -20,7 +20,9 @@ LINE・Alexa に話しかけると次のバス発車時刻を教えてくれる�
 - **LINE Bot**: バス停番号を送ると次の発車時刻を返信
 - **Alexa スキル**: 「次のバスは？」で音声案内
 - **管理画面** (`/admin`): バス停・時刻表をブラウザから編集
-- 平日 / 土曜 / 休日で時刻表を自動切り替え（JST 基準）
+- 平日 / 土曜 / 休日で時刻表を自動切り替え（JST 基準、祝日・振替休日にも対応）
+- 日付をまたいだ直後は前日ダイヤの深夜便（24:xx）も案内
+- 管理画面はパスキー (WebAuthn) でログイン
 - Cloudflare WAF による `/admin` の IP 制限
 
 ## エンドポイント
@@ -31,7 +33,8 @@ LINE・Alexa に話しかけると次のバス発車時刻を教えてくれる�
 | `POST` | `/line` | LINE Webhook |
 | `POST` | `/alexa` | Alexa スキル |
 | `GET` | `/admin` | 管理画面 (IP 制限あり) |
-| `*` | `/admin/api/*` | 管理 REST API (Bearer 認証) |
+| `*` | `/admin/api/auth/*` | パスキー登録・ログイン・ログアウト |
+| `*` | `/admin/api/*` | 管理 REST API (パスキーログインの Cookie セッション認証) |
 
 ## セットアップ
 
@@ -97,6 +100,7 @@ ADMIN_API_TOKEN=your-token
 bun run dev          # ローカル開発サーバー起動
 bun run deploy       # Cloudflare Workers にデプロイ
 bun run lint         # oxlint でコードチェック
+bun run test         # bun test でユニットテスト
 bun run format       # dprint でフォーマット
 bun run db:generate  # Drizzle マイグレーションファイル生成
 bun run db:push      # DB にスキーマを直接適用

@@ -1,6 +1,6 @@
 import type { IRequest } from "itty-router";
 import { createDb } from "../db/client";
-import { getNextDeparture } from "../repository/timeTable";
+import { getBusStopById, getNextDeparture } from "../repository/timeTable";
 import type { Env } from "../types";
 import { formatTime, getJSTTime } from "../utils/time";
 
@@ -22,16 +22,24 @@ export async function handleSearch(req: IRequest, env: Env): Promise<Response> {
 	}
 
 	const db = createDb(env.TURSO_DATABASE_URL, env.TURSO_AUTH_TOKEN);
-	const { hour, minute, dayType } = getJSTTime();
-	const next = await getNextDeparture(db, busStopId, dayType, hour, minute);
+	const busStop = await getBusStopById(db, busStopId);
+	if (!busStop) {
+		return Response.json({ error: "bus stop not found" }, { status: 404 });
+	}
+
+	const next = await getNextDeparture(db, busStopId, getJSTTime());
 
 	if (!next) {
-		return Response.json({ busStopId, message: "本日の残りのバスはありません" });
+		return Response.json({
+			busStopId,
+			busStopName: busStop.name,
+			message: "本日の残りのバスはありません",
+		});
 	}
 
 	return Response.json({
 		busStopId,
-		busStopName: next.busStopName,
+		busStopName: busStop.name,
 		nextDeparture: {
 			hour: next.hour,
 			minute: next.minute,

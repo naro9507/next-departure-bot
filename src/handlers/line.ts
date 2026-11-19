@@ -1,5 +1,5 @@
 import type { IRequest } from "itty-router";
-import { createDb } from "../db/client";
+import { createDb, type Db } from "../db/client";
 import {
 	getAllBusStops,
 	getBusStopById,
@@ -78,6 +78,26 @@ function isTextMessageEvent(
 		&& event.message?.type === "text";
 }
 
+async function buildReplyText(db: Db, message: string): Promise<string> {
+	const busStopId = parseBusStopId(message);
+
+	if (busStopId === null) {
+		const stops = await getAllBusStops(db);
+		const list = stops.map((s) => `${s.id}: ${s.name}`).join("\n");
+		return `バス停番号を送ってください\n${list}`;
+	}
+
+	const busStop = await getBusStopById(db, busStopId);
+	if (!busStop) {
+		return `${busStopId}番のバス停は見つかりませんでした。\n「一覧」と送るとバス停の一覧を表示します`;
+	}
+
+	const next = await getNextDeparture(db, busStopId, getJSTTime());
+	return next
+		? `${busStop.name}の次のバス: ${formatTime(next.hour, next.minute)}発`
+		: `${busStop.name}の本日の残りのバスはありません`;
+}
+
 export async function handleLine(req: IRequest, env: Env): Promise<Response> {
 	const body = await req.text();
 	const signature = req.headers.get("x-line-signature") ?? "";
@@ -98,33 +118,14 @@ export async function handleLine(req: IRequest, env: Env): Promise<Response> {
 
 	for (const event of webhook.events ?? []) {
 		if (!isTextMessageEvent(event)) continue;
-
-		const reply = (text: string) =>
-			sendReply(event.replyToken, text, env.LINE_CHANNEL_ACCESS_TOKEN);
-
-		const busStopId = parseBusStopId(event.message.text);
-
-		if (busStopId === null) {
-			const stops = await getAllBusStops(db);
-			const list = stops.map((s) => `${s.id}: ${s.name}`).join("\n");
-			await reply(`バス停番号を送ってください\n${list}`);
-			continue;
+		try {
+			const text = await buildReplyText(db, event.message.text);
+			await sendReply(event.replyToken, text, env.LINE_CHANNEL_ACCESS_TOKEN);
+		} catch (e) {
+			// 1 件の失敗 (DB / 返信 API の通信エラー) で他のイベントを止めず、LINE には 200 を返す
+			// oxlint-disable-next-line no-console
+			console.error("LINE event failed", e);
 		}
-
-		const busStop = await getBusStopById(db, busStopId);
-		if (!busStop) {
-			await reply(
-				`${busStopId}番のバス停は見つかりませんでした。\n「一覧」と送るとバス停の一覧を表示します`,
-			);
-			continue;
-		}
-
-		const next = await getNextDeparture(db, busStopId, getJSTTime());
-		await reply(
-			next
-				? `${busStop.name}の次のバス: ${formatTime(next.hour, next.minute)}発`
-				: `${busStop.name}の本日の残りのバスはありません`,
-		);
 	}
 
 	// LINE expects 200 OK

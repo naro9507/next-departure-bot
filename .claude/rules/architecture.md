@@ -92,8 +92,12 @@ Cloudflare Workers は UTC で動作する。JST 変換は `src/utils/time.ts` �
 
 - `bun test` を使う。テストは `test/` に置き、`tsconfig.json` の `exclude` で tsc の対象外にしている（`bun:test` の型と Workers の型が衝突するため）
 - ロジックは DB に依存しない純粋関数に切り出してテストする（例: `pickNextDeparture`、`parseBusStopId`）
+- 結合テスト（`test/app.test.ts`）は `mock.module("../src/db/client")` で DB をインメモリ libSQL（`test/helpers/testDb.ts`）に差し替え、`src/index.ts` のルーターに Request を投げる
+  - 時刻は `setSystemTime()` で固定、LINE 返信 API は `globalThis.fetch` を差し替えて検証する
+  - 管理 API は `createSessionValue(ADMIN_API_TOKEN)` で Cookie を作って呼ぶ
 
 ## 外部リクエストの検証
 
 - LINE: `x-line-signature` を `crypto.subtle.verify` で検証（文字列の `===` 比較はしない）
+- LINE: イベントごとに try/catch し、失敗はログに残して常に 200 を返す（返信 API の通信エラーで 500 にしない）
 - Alexa: アプリケーション ID（`context.System` 優先）とタイムスタンプ（±150 秒）を検証。署名検証は未実装

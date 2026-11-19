@@ -1,8 +1,5 @@
-import { createClient } from "@libsql/client";
 import { beforeEach, describe, expect, test } from "bun:test";
-import { drizzle } from "drizzle-orm/libsql";
 import type { Db } from "../src/db/client";
-import * as schema from "../src/db/schema";
 import {
 	bulkAddTimetableEntries,
 	createBusStop,
@@ -13,16 +10,7 @@ import {
 	getTimetableForBusStop,
 } from "../src/repository/timeTable";
 import { getJSTTime } from "../src/utils/time";
-
-// Node 版 @libsql/client のインメモリ DB で実際の SQL を検証する (本番は /web 版)
-async function setupDb(): Promise<Db> {
-	const client = createClient({ url: ":memory:" });
-	await client.executeMultiple(`
-		CREATE TABLE bus_stops (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')));
-		CREATE TABLE timetable (id INTEGER PRIMARY KEY AUTOINCREMENT, bus_stop_id INTEGER NOT NULL REFERENCES bus_stops(id), day_type TEXT NOT NULL, hour INTEGER NOT NULL, minute INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')));
-	`);
-	return drizzle(client, { schema }) as unknown as Db;
-}
+import { createTestDb as setupDb } from "./helpers/testDb";
 
 const jst = (iso: string) => getJSTTime(new Date(`${iso}+09:00`));
 

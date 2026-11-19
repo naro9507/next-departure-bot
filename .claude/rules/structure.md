@@ -29,8 +29,10 @@ test/                      # bun test のユニットテスト (tsc の対象外
 ├── time.test.ts           # getJSTTime / formatTime / pickNextDeparture
 ├── parseBusStopId.test.ts
 ├── parseTimes.test.ts
-├── timeTable.test.ts      # インメモリ libSQL で次発検索・削除の SQL を検証
-└── alexa.test.ts          # DB を使わない経路のみ
+├── timeTable.test.ts      # インメモリ libSQL で次発検索・削除・一括登録の SQL を検証
+├── alexa.test.ts          # DB を使わない経路のみ
+├── app.test.ts            # ルーター経由の結合テスト (search / LINE / Alexa / 管理 API / 認証)
+└── helpers/testDb.ts      # インメモリ libSQL (全テーブル) を作るヘルパー
 
 terraform/
 ├── providers.tf           # cloudflare ~>5.0, turso-dev/turso ~>0.1
